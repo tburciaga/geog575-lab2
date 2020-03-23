@@ -33,3 +33,8 @@
     font-size: 0.9em;
     font-weight: bold;
 }
+
+.cityBoundary {
+    fill-opacity: .1;
+    stroke: black;
+}

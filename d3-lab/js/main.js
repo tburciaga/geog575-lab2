@@ -80,10 +80,10 @@
             setChart(csvData, colorScale)
             
             // call drop-down creation function
-            createDropdown()
+            createDropdown(csvData)
 
             // call label creation function
-            setLabel()
+            setLabel(csvData)
 
         };
     };
@@ -383,10 +383,12 @@
 
     // function to highlight enumeration units and bars
     function highlight(props){
+        console.log(props);
         //change stroke
         var selected = d3.selectAll("." + props.GEOID)
             .style("stroke", "white")
             .style("stroke-width", "2");
+
     };
 
     // function to reset the element style on mouseout
@@ -428,7 +430,7 @@
             .html(labelAttribute)
             .append("div") // child div for feature name
             .attr("class", "labelname") //for styling name
-            .html(labelName); //add feature name to label
+            .html(labelAttribute); //add feature name to label
 
         // var tractName = infolabel.append("div")
         //     .attr("class", "labelname")

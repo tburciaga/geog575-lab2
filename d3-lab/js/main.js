@@ -14,18 +14,19 @@
     //chart frame dimensions
     var chartWidth = window.innerWidth * 0.425,
         chartHeight = 790,
-        leftPadding = 25,
+        margin = 60,
+        leftPadding = 60,
         rightPadding = 2,
-        topBottomPadding = 5,
+        topPadding = 10,
+        topBottomPadding = 0,
         chartInnerWidth = chartWidth - leftPadding - rightPadding,
         chartInnerHeight = chartHeight - topBottomPadding * 2,
         translate = "translate(" + leftPadding + "," + topBottomPadding + ")";
 
     var yScale = d3.scaleLinear()
-        .range([0, chartHeight])
-        .domain([0, 1000]);  
-    //    console.log("This is the answer: " + d3.max(data, function(d) { return parseFloat(d[expressed]); }))
-
+        .range([chartHeight - 10, 0])
+        .domain([0, 10000]);  // first attribute maxes under 10000
+    
     // begin script when window loads
     window.onload = setMap()
 
@@ -85,6 +86,8 @@
             // call label creation function
             setLabel(csvData)
 
+            // console.log(censusTracts);
+
         };
     };
 
@@ -139,13 +142,16 @@
                 return choropleth(d.properties, colorScale);
             })
             .on("mouseover", function(d){
-                highlight(d.properties)
-            .on("mouseout", dehighlight)
+                highlight(d.properties);
+            })
+            .on("mouseout", function(d){
+                dehighlight(d.properties);
             })
             .on("mousemove", moveLabel);
 
+        //add style descriptor to each path
         var desc = censusTracts.append("desc")
-            .text('{"stroke": "#000", "stroke-width": "0.5px"}');
+        .text('{"stroke": "#000", "stroke-width": "0.5px"}');
     };
 
     // color scale generator
@@ -203,9 +209,15 @@
     // create coordinated bar chart
     function setChart(csvData, colorScale){
 
-        var yScale = d3.scaleLinear()
-            .range([0, chartHeight])
-            .domain([0, 105000]);
+        // var domainArray = [];
+        // for (var i=0; i<csvData.length; i++){
+        //     var val = parseFloat(csvData[i][expressed]);
+        //     domainArray.push(val);
+        // };        
+
+        // var yScale = d3.scaleLinear()
+        //     .range([0, chartHeight])
+        //     .domain([d3.max(csvData, function(d) { return parseFloat(d[expressed]); }), 0]);
     
         //create a second svg element to hold the bar chart
         var chart = d3.select("body")
@@ -221,6 +233,7 @@
             .attr("height", chartInnerHeight)
             .attr("transform", translate);
 
+        
          //Example 2.4 line 8...set bars 
         var bars = chart.selectAll(".bars")
             .data(csvData)
@@ -233,66 +246,68 @@
                 return "bars " + d.GEOID;
             })
             .attr("width", chartInnerWidth / csvData.length)
-            .attr("x", function(d, i){
-                return i * (chartWidth / csvData.length);
-            })
-            .attr("height", function(d){
-                return yScale(parseFloat(d[expressed]));
-            })
-            .attr("y", function(d){
-                return chartHeight - yScale(parseFloat(d[expressed]));
-            })
-            .style("fill", function(d){
-                return choropleth(d, colorScale)
-            })
+            // .attr("x", function(d, i){
+            //     return i * (chartInnerWidth / csvData.length) + leftPadding;
+            // })
+            // .attr("height", function(d){
+            //     return yScale(parseFloat(d[expressed]));
+            // })
+            // .attr("y", function(d){
+            //     return chartHeight - yScale(parseFloat(d[expressed]));
+            // })
+            // .style("fill", function(d){
+            //     return choropleth(d, colorScale)
+            // })
             .on("mouseover", highlight)
             .on("mouseout", dehighlight)
             .on("mousemove", moveLabel);
 
+        //add style descriptor to each bar
         var desc = bars.append("desc")
             .text('{"stroke": "none", "stroke-width": "0px"}');
 
+
+
+        // //add bar annotation
+        // var numbers = chart.selectAll(".numbers")
+        //     .data(csvData)
+        //     .enter()
+        //     .append("text")
+        //     .sort(function(a, b){
+        //         return b[expressed]-a[expressed]
+        //     })
+        //     .attr("class", function(d){
+        //         return "numbers " + d.SIDES;
+        //     })
+        //     .attr("text-anchor", "middle")
+        //     .attr("x", function(d, i){
+        //         var fraction = chartWidth / csvData.length;
+        //         return i * fraction + (fraction - 1) / 2;
+        //     })
+        //     .attr("y", function(d){
+        //         return chartHeight - yScale(parseFloat(d[expressed])) + 15;
+        //     })
+        //     .text(function(d){
+        //         return d[expressed];
+        //     });
+       
         //add chart title
         var chartTitle = chart.append("text")
-            .attr("x", 40)
+            .attr("x", 80)
             .attr("y", 40)
             .attr("class", "chartTitle")
-            .text(expressed + " in each census tract");
-
-        //add bar annotation
-        var numbers = chart.selectAll(".numbers")
-            .data(csvData)
-            .enter()
-            .append("text")
-            .sort(function(a, b){
-                return b[expressed]-a[expressed]
-            })
-            .attr("class", function(d){
-                return "numbers " + d.SIDES;
-            })
-            .attr("text-anchor", "middle")
-            .attr("x", function(d, i){
-                var fraction = chartWidth / csvData.length;
-                return i * fraction + (fraction - 1) / 2;
-            })
-            .attr("y", function(d){
-                return chartHeight - yScale(parseFloat(d[expressed])) + 15;
-            })
-            .text(function(d){
-                return d[expressed];
-            });
-
+            .text(expressed + " per tract");
+      
         //create vertical axis generator
         var yAxis = d3.axisLeft()
             .scale(yScale)
-            //.orient("left");
 
         //place axis
         var axis = chart.append("g")
             .attr("class", "axis")
             .attr("transform", translate)
             .call(yAxis);
-
+        
         //create frame for chart border
         var chartFrame = chart.append("rect")
             .attr("class", "chartFrame")
@@ -300,10 +315,18 @@
             .attr("height", chartInnerHeight)
             .attr("transform", translate);
 
+        //set bar positions, heights, and colors
+        updateChart(bars, csvData.length, colorScale);
+
     };        
 
     // function to create a dropdown menu for attribute selection
     function createDropdown(csvData){
+        
+        // I HAVE NO IDEA WHY THIS WOULD BE NECESSARY
+        // BUT IT WAS PART OF DEBUGGING SOLUTION
+        var csvData = csvData
+        
         //add select element
         var dropdown = d3.select("body")
             .append("select")
@@ -332,6 +355,25 @@
         //change the expressed attribute
         expressed = attribute;
 
+        //this changes the yscale when the attribute is changed
+        csvmax = d3.max(csvData, function (d) { return parseFloat(d[expressed]); });
+
+        yScale = d3.scaleLinear()
+            .range([chartHeight - 10, 0])
+            .domain([0, csvmax*1.1]);
+
+        //update vertical axis
+        d3.select(".axis").remove();
+        var yAxis = d3.axisLeft()
+            .scale(yScale);
+
+        //place axis
+        var axis = d3.select(".chart")
+            .append("g")
+            .attr("class", "axis")
+            .attr("transform", translate)
+            .call(yAxis)
+
         //recreate the color scale
         var colorScale = makeColorScale(csvData);
 
@@ -344,7 +386,7 @@
             });
 
          //re-sort, resize, and recolor bars
-        var bars = d3.selectAll(".bar")
+        var bars = d3.selectAll(".bars")
             //re-sort bars
             .sort(function(a, b){
                 return b[expressed] - a[expressed];
@@ -362,33 +404,32 @@
     function updateChart(bars, n, colorScale){
         // position bars
         bars.attr("x", function(d, i){
-            return i * (chartInnerWidth / csvData.length) + leftPadding;
+            return i * (chartInnerWidth / n) + leftPadding;
         })
         // size/resize bars
         .attr("height", function(d, i){
-            // console.log(yScale(parseFloat(d[expressed])))
             return yScale(parseFloat(d[expressed]));
         })
         .attr("y", function(d, i){
             return chartHeight - yScale(parseFloat(d[expressed])) + topBottomPadding;
         })
-        //c olor/recolor bars
+        //color/recolor bars
         .style("fill", function(d){
             return choropleth(d, colorScale);
         });
         // add text to chart title
         var chartTitle = d3.select(".chartTitle")
-            .text(expressed + " in each community area");
+            .text(expressed + " per tract");
     };
 
     // function to highlight enumeration units and bars
     function highlight(props){
-        console.log(props);
         //change stroke
         var selected = d3.selectAll("." + props.GEOID)
             .style("stroke", "white")
             .style("stroke-width", "2");
 
+        setLabel(props);
     };
 
     // function to reset the element style on mouseout
@@ -399,10 +440,11 @@
             })
             .style("stroke-width", function(){
                 return getStyle(this, "stroke-width")
-            })
+            });
+
             // remove info label
             d3.select(".infolabel")
-            .remove();
+                .remove();
             
 
         function getStyle(element, styleName){
@@ -428,9 +470,10 @@
             .attr("class", "infolabel")
             .attr("id", props.GEOID + "label") // to style label
             .html(labelAttribute)
-            .append("div") // child div for feature name
+
+        var tractName = infolabel.append("div")
             .attr("class", "labelname") //for styling name
-            .html(labelAttribute); //add feature name to label
+            .html(props.name); //add feature name to label
 
         // var tractName = infolabel.append("div")
         //     .attr("class", "labelname")
@@ -459,9 +502,6 @@
         d3.select(".infolabel")
             .style("left", x + "px")
             .style("top", y + "px");
-
-
-        
     };
 
 })();

@@ -1,277 +1,465 @@
 /* Javascript by Todd Burciaga, 2020 */
 
-//create global variables array
-var keyArray = ["GEOID","TOTAL_POPULATION","MEDIAN_AGE","PCT_POVERTY","PCT_HSNGCSTS_OVR_50_PCT","PCT_OCR_25_HGHSCL_CMPLT","PCT_OVR_25_BCHLRS_CMPLT","PCT_UNEMPLOYED"];
-var expressed = keyArray[0];
-
-window.onload = initialize(); //start script after HTML loaded
-
-function initialize(){ //the first function called
-    setMap();
-};
-
-//set up choropleth map
-function setMap(){
-
-    //map frame dimensions
-    var width = 960,
-        height = 460;
-
-    //create a page title
-    var title = d3.select("body")
-        .append("h1")
-        .text("Chicago Census Data Choropleth");
+//anonymous function wrapper to move all to local scope
+(function(){
     
-    //create new svg container for the map
-    var map = d3.select("body")
-        .append("svg")
-        .attr("class", "map")
-        .attr("width", width)
-        .attr("height", height);
+    //psuedo-global variables for data join
+    var attrArray = ["TOTAL_POPULATION", "MEDIAN_AGE", "PCT_POVERTY", "PCT_HSNGCSTS_OVR_50_PCT", "PCT_OVR_25_HGHSCL_CMPLT", "PCT_OVR_25_BCHLRS_CMPLT", "PCT_UNEMPLOYED"];
+    var expressed = attrArray[0]; //first attribute
+ 
+    //map frame dimensions
+    var mapWidth = window.innerWidth * 0.5,
+        mapHeight = 790;
 
-    //create Albers equal area conic projection centered on Chicago
-    var projection = d3.geoAlbers()
-        .center([5.95, 41.89])
-        .rotate([93.63, 0.00, 0])
-        .parallels([29.27, 74.72])
-        .scale(50000.00)
-        .translate([width / 2, height / 2]);
+    //chart frame dimensions
+    var chartWidth = window.innerWidth * 0.425,
+        chartHeight = 790,
+        leftPadding = 25,
+        rightPadding = 2,
+        topBottomPadding = 5,
+        chartInnerWidth = chartWidth - leftPadding - rightPadding,
+        chartInnerHeight = chartHeight - topBottomPadding * 2,
+        translate = "translate(" + leftPadding + "," + topBottomPadding + ")";
 
-    //create a path generator
-    var path = d3.geoPath()
-        .projection(projection);
+    var yScale = d3.scaleLinear()
+        .range([0, chartHeight])
+        .domain([0, 1000]);  
+    //    console.log("This is the answer: " + d3.max(data, function(d) { return parseFloat(d[expressed]); }))
 
-    //use d3.queue to parallelize asynchronous data loading
-    d3.queue()
-        .defer(d3.csv, "data/Census_Data.csv") //load attributes from csv
-        .defer(d3.json, "data/Census_Tracts.topojson") //load choropleth spatial data (Chicago_Census_Tract_Boundaries_WGS84)
-        .defer(d3.json, "data/City_Boundary.topojson") //load city boundary (Chicago_City_Boundary_WGS84)
-        .await(callback);
+    // begin script when window loads
+    window.onload = setMap()
 
-    function callback(error, csvData, censusTracts, cityBoundary){
-        
-        var recolorMap = colorScale(csvData); //call color scale generator
+    // set up choropleth map
+    function setMap(){
 
-        //csv to json data transfer
-        var jsonTracts = censusTracts.objects.Chicago_Census_Tract_Boundaries_WGS84.geometries;
+        //create new svg container for the map
+        var map = d3.select("body")
+            .append("svg")
+            .attr("class", "map")
+            .attr("width", mapWidth)
+            .attr("height", mapHeight);
 
-        //loop through json tracts to assign csv data to each json tract properties
-        for (var i=0; i<csvData.length; i++) {
-            var csvTract = csvData[i]; //current tract's attributes
-            var csvGeoid = csvTract.GEOID; //GEOID
+        //create conic conformal projection centered on Chicago
+        var projection = d3.geoConicConformal()
+            .center([-.08, 41.84])
+            .rotate([87.61, 0.00, 0])
+            .parallels([29.27, 74.72])
+            .scale(120000.00)
+            .translate([mapWidth / 2, mapHeight / 2]);
 
-            //loop through json tracts to assign csv data to the right tract
+        var path = d3.geoPath()
+            .projection(projection);
+
+        //use d3.queue to parallelize asychronous data loading
+        d3.queue()
+            .defer(d3.csv, "data/CensusData.csv") //load attributes from csv
+            .defer(d3.json, "data/LakeMichigan.topojson") //load background spatial data
+            .defer(d3.json, "data/CensusTracts.topojson") //load choropleth spatial data
+            .await(callback);
+
+        //callback function
+        function callback(error, csvData, lakeMichigan, censusTracts){
+            
+            //translate TopoJSON back to geoJSON
+            var lakeMichigan = topojson.feature(lakeMichigan, lakeMichigan.objects.LakeMichiganWGS84),
+                censusTracts = topojson.feature(censusTracts, censusTracts.objects.Chicago_Census_Tracts_WGS84).features;
+
+            // join csv data to GeoJSON tract and community tract enumeration units
+            censusTracts = joinData(censusTracts, csvData);
+
+            // create the color scale
+            var colorScale = makeColorScale(csvData);
+
+            // add tract enumeration units to the map
+            setEnumerationUnits(censusTracts, colorScale, map, path);
+
+            // add background data
+            setBackgroundData(lakeMichigan, map, path);
+
+            // create chart
+            setChart(csvData, colorScale)
+            
+            // call drop-down creation function
+            createDropdown()
+
+            // call label creation function
+            setLabel()
+
+        };
+    };
+
+    // join census data to census tracts
+    function joinData(censusTracts, csvData){
+    //loop through csv to assign each set of csv attribute values to geojson tract
+        for (var i=0; i<csvData.length; i++){
+            var csvTract = csvData[i]; //the current tract
+            var csvKey = csvTract.GEOID; //the CSV primary key
+
+            //loop through geojson tracts to find correct tract
             for (var a=0; a<censusTracts.length; a++){
 
-                //where adm1 codes match, attach csv data to json object
-                if (censusTracts[a].properties.GEOID == csvGeoid){
-                    
-                    //for loop to assign all key/value pairs to json object
-                    for (var key in keyArray){
-                        var attr = keyArray[key];
-                        var val = parseFloat(csvTract[attr]);
-                        censusTracts[a].properties[attr] = val;
-                    };
+                var geojsonProps = censusTracts[a].properties; //the current tract geojson properties
+                var geojsonKey = geojsonProps.GEOID; //the geojson primary key
 
-                    censusTracts[a].properties.name = csvTract.name; //set prop
-                    break; //stop looking through json tracts
+                //where primary keys match, transfer csv data to geojson properties object
+                if (geojsonKey == csvKey){
+
+                    //assign all attributes and values
+                    attrArray.forEach(function(attr){
+                        var val = parseFloat(csvTract[attr]); //get csv attribute value
+                        geojsonProps[attr] = val; //assign attribute and value to geojson properties
+                    });
                 };
             };
         };
+        return censusTracts;
+    };
 
-        //add city boundary to map
-        var cityBoundary = map.append("path") //create SVG path element
-			.datum(topojson.feature(cityBoundary, cityBoundary.objects.Chicago_City_Boundary_WGS84)) //bind city boundary data to path element
-			.attr("class", "cityBoundary") //assign class for styling city
-			.attr("d", path); //project data as geometry in svg
+    // add background data
+    function setBackgroundData(lakeMichigan, map, path){
+        var lakeMichigan = map.append("path")
+            .datum(lakeMichigan)
+            .attr("class", "lakeMichigan")
+            .attr("d", path);
+    };
 
-        //add tracts to map as enumeration units colored by data
-		var censusTracts = map.selectAll(".tracts")
-            .data(topojson.feature(censusTracts, censusTracts.objects.Chicago_Census_Tract_Boundaries_WGS84)) //bind tract data to path element
-            .enter() //create elements
-            .append("path") //append elements to svg
-            .attr("class", "tracts") //assign class for additional styling
-            .attr("id", function(d) { return d.properties.GEOID })
-            .attr("d", path) //project data as geometry in svg
-            .style("fill", function(d) { //color enumeration units
-                return choropleth(d, recolorMap);
+    // add census tract boundaries
+    function setEnumerationUnits(censusTracts, colorScale, map, path){
+       
+        //add census tract boundaries to map
+        var censusTracts = map.selectAll(".tracts")
+            .data(censusTracts)
+            .enter()
+            .append("path")
+            .attr("class", function(d){
+                return "tracts " + d.properties.GEOID;
+            })
+            .attr("d", path)
+            .style("fill", function(d){
+                return choropleth(d.properties, colorScale);
+            })
+            .on("mouseover", function(d){
+                highlight(d.properties)
+            .on("mouseout", dehighlight)
+            })
+            .on("mousemove", moveLabel);
+
+        var desc = censusTracts.append("desc")
+            .text('{"stroke": "#000", "stroke-width": "0.5px"}');
+    };
+
+    // color scale generator
+    function makeColorScale(data){
+        // blue yellow color classes
+        var colorClasses = [
+            "#ffffcc",
+            "#a1dab4",
+            "#41b6c4",
+            "#2c7fb8",
+            "#253494"
+        ];
+
+        //create color scale generator
+        var colorScale = d3.scaleThreshold()
+            .range(colorClasses);
+
+        //build array of all values of the expressed attribute
+        var domainArray = [];
+            for (var i=0; i<data.length; i++){
+                var val = parseFloat(data[i][expressed]);
+                domainArray.push(val);
+            };
+        
+        //cluster data using ckmeans clustering algorithm to create natural breaks
+        var clusters = ss.ckmeans(domainArray, 5);
+        
+        //reset domain array to cluster minimums
+        domainArray = clusters.map(function(d){
+            return d3.min(d);
+        });
+       
+        //remove first value from domain array to create class breakpoints
+        domainArray.shift();
+
+        //assign array of last 4 cluster minimums as domain
+        colorScale.domain(domainArray);
+       
+        return colorScale;
+
+    };
+
+    // function to test for data value and return color
+    function choropleth(props, colorScale){
+        //make sure attribute value is a number
+        var val = parseFloat(props[expressed]);
+        //if attribute value exists, assign a color; otherwise assign gray
+        if (typeof val == 'number' && !isNaN(val)){
+            return colorScale(val);
+        } else {
+            return "#CCC";
+        };
+    };
+
+    // create coordinated bar chart
+    function setChart(csvData, colorScale){
+
+        var yScale = d3.scaleLinear()
+            .range([0, chartHeight])
+            .domain([0, 105000]);
+    
+        //create a second svg element to hold the bar chart
+        var chart = d3.select("body")
+            .append("svg")
+            .attr("width", chartWidth)
+            .attr("height", chartHeight)
+            .attr("class", "chart");
+
+        //create a rectangle for chart background fill
+        var chartBackground = chart.append("rect")
+            .attr("class", "chartBackground")
+            .attr("width", chartInnerWidth)
+            .attr("height", chartInnerHeight)
+            .attr("transform", translate);
+
+         //Example 2.4 line 8...set bars 
+        var bars = chart.selectAll(".bars")
+            .data(csvData)
+            .enter()
+            .append("rect")
+            .sort(function(a, b){
+                return b[expressed]-a[expressed]
+            })
+            .attr("class", function(d){
+                return "bars " + d.GEOID;
+            })
+            .attr("width", chartInnerWidth / csvData.length)
+            .attr("x", function(d, i){
+                return i * (chartWidth / csvData.length);
+            })
+            .attr("height", function(d){
+                return yScale(parseFloat(d[expressed]));
+            })
+            .attr("y", function(d){
+                return chartHeight - yScale(parseFloat(d[expressed]));
+            })
+            .style("fill", function(d){
+                return choropleth(d, colorScale)
             })
             .on("mouseover", highlight)
             .on("mouseout", dehighlight)
-            .on("mousemove", moveLabel)
-            .append("desc") //append the current color
-                .text(function(d) {
-                    return choropleth(d, recolorMap);
-                });
+            .on("mousemove", moveLabel);
 
-        createDropdown(csvData); //create the dropdown menu
+        var desc = bars.append("desc")
+            .text('{"stroke": "none", "stroke-width": "0px"}');
 
-    };
-};
+        //add chart title
+        var chartTitle = chart.append("text")
+            .attr("x", 40)
+            .attr("y", 40)
+            .attr("class", "chartTitle")
+            .text(expressed + " in each census tract");
 
-function createDropdown(csvData){
-	//add a select element for the dropdown menu
-	var dropdown = d3.select("body")
-		.append("div")
-		.attr("class","dropdown") //for positioning menu with css
-		.html("<h3>Select Variable:</h3>")
-		.append("select")
-		.on("change", function(){ changeAttribute(this.value, csvData) }); //changes expressed attribute
-	
-	//create each option element within the dropdown
-	dropdown.selectAll("options")
-		.data(keyArray)
-		.enter()
-		.append("option")
-		.attr("value", function(d){ return d })
-		.text(function(d) {
-			// d = d[0].toUpperCase() + d.substring(1,3) + " " + d.substring(3);
-			return d
-		});
-};
-
-function colorScale(csvData){
-
-    //create quantile classes with color scale
-    var color = d3.scaleQuantile() //quantile scale generator
-        .range([
-            "#D4B9DA",
-			"#C994C7",
-			"#DF65B0",
-			"#DD1C77",
-			"#980043"
-        ]);
-
-    //build array of expressed values for input domain
-    var domainArray = [];
-    for (var i in csvData){
-        domainArray.push(Number(csvData[i][expressed]));
-    };
-
-    //for equal-interval scale, use min and max expressed data values as domain
-	// color.domain([
-	// 	d3.min(csvData, function(d) { return Number(d[expressed]); }),
-	// 	d3.max(csvData, function(d) { return Number(d[expressed]); })
-    // ]);
-    
-    //for quantile scale, pass array of expressed values as domain
-    color.domain(domainArray);
-
-    return color; //returns the color scale generator
-};
-
-function choropleth(d, recolorMap){
-
-    //get data value
-    var valeu = d.properties[expressed];
-    //if exists, assign it a color; otherwise assign gray
-    if (value) {
-        return recolorMap(value); //recolorMap holds the colorScale generator
-    } else {
-        return "#ccc";
-    };
-};
-
-function changeAttribute(attribute, csvData){
-    //change the expressed attribute
-    expressed = attribute;
-
-    //recolor the map
-    d3.selectAll(".tracts") //select every tract
-        .style("fill", function(d) { //recolor enumeration units
-            return choropleth(d, colorScale(csvData)); 
-        })
-        .select("desc") //replace the color text in each tract's desc element
-            .text(function(d) {
-                return choropleth(d, colorScale(csvData));
+        //add bar annotation
+        var numbers = chart.selectAll(".numbers")
+            .data(csvData)
+            .enter()
+            .append("text")
+            .sort(function(a, b){
+                return b[expressed]-a[expressed]
+            })
+            .attr("class", function(d){
+                return "numbers " + d.SIDES;
+            })
+            .attr("text-anchor", "middle")
+            .attr("x", function(d, i){
+                var fraction = chartWidth / csvData.length;
+                return i * fraction + (fraction - 1) / 2;
+            })
+            .attr("y", function(d){
+                return chartHeight - yScale(parseFloat(d[expressed])) + 15;
+            })
+            .text(function(d){
+                return d[expressed];
             });
-};
 
-function format(value){
+        //create vertical axis generator
+        var yAxis = d3.axisLeft()
+            .scale(yScale)
+            //.orient("left");
 
-    //format the value's display according to the attribute
-    if (expressed != "Population"){
-        value = "$"+roundRight(value);
-    } else {
-        value = roundRight(value);
+        //place axis
+        var axis = chart.append("g")
+            .attr("class", "axis")
+            .attr("transform", translate)
+            .call(yAxis);
+
+        //create frame for chart border
+        var chartFrame = chart.append("rect")
+            .attr("class", "chartFrame")
+            .attr("width", chartInnerWidth)
+            .attr("height", chartInnerHeight)
+            .attr("transform", translate);
+
+    };        
+
+    // function to create a dropdown menu for attribute selection
+    function createDropdown(csvData){
+        //add select element
+        var dropdown = d3.select("body")
+            .append("select")
+            .attr("class", "dropdown")
+            .on("change", function(){
+                changeAttribute(this.value, csvData)
+            });
+
+        //add initial option
+        var titleOption = dropdown.append("option")
+            .attr("class", "titleOption")
+            .attr("disabled", "true")
+            .text("Select Attribute");
+
+        //add attribute name options
+        var attrOptions = dropdown.selectAll("attrOptions")
+            .data(attrArray)
+            .enter()
+            .append("option")
+            .attr("value", function(d){ return d })
+            .text(function(d){ return d });
     };
-    return value;
-};
 
-function roundRight(number){
-	
-	if (number>=100){
-		var num = Math.round(number);
-		return num.toLocaleString();
-	} else if (number<100 && number>=10){
-		return number.toPrecision(4);
-	} else if (number<10 && number>=1){
-		return number.toPrecision(3);
-	} else if (number<1){
-		return number.toPrecision(2);
-	};
-};
+    // dropdown change listener handler
+    function changeAttribute(attribute, csvData){
+        //change the expressed attribute
+        expressed = attribute;
 
-function highlight(data){
-	
-	var props = data.properties; //json properties
+        //recreate the color scale
+        var colorScale = makeColorScale(csvData);
 
-	d3.select("#"+props.GEOID) //select the current tract in the DOM
-		.style("fill", "#000"); //set the enumeration unit fill to black
+        //recolor enumeration units
+        var tracts = d3.selectAll(".tracts")
+            .transition()
+            .duration(1000)
+            .style("fill", function(d){
+                return choropleth(d.properties, colorScale)
+            });
 
-	var labelAttribute = "<h1>"+props[expressed]+
-		"</h1><br><b>"+expressed+"</b>"; //label content
-	var labelName = props.name //html string for name to go in child div
-	
-	//create info label div
-	var infolabel = d3.select("body")
-		.append("div") //create the label div
-		.attr("class", "infolabel")
-		.attr("id", props.GEOID+"label") //for styling label
-		.html(labelAttribute) //add text
-		.append("div") //add child div for feature name
-		.attr("class", "labelname") //for styling name
-		.html(labelName); //add feature name to label
-};
+         //re-sort, resize, and recolor bars
+        var bars = d3.selectAll(".bar")
+            //re-sort bars
+            .sort(function(a, b){
+                return b[expressed] - a[expressed];
+            })
+            .transition() //add animation
+            .delay(function(d, i){
+                return i * 20
+            })
+            .duration(500);
 
-function dehighlight(data){
-	
-	var props = data.properties; //json properties
-	var tract = d3.select("#"+props.GEOID); //select the current tract
-	var fillcolor = tract.select("desc").text(); //access original color from desc
-	tract.style("fill", fillcolor); //reset enumeration unit to orginal color
-	
-	d3.select("#"+props.GEOID+"label").remove(); //remove info label
-};
+        updateChart(bars, csvData.length, colorScale)
+    };
 
-function moveLabel() {
-	
-	var x = d3.event.clientX+10; //horizontal label coordinate based mouse position stored in d3.event
-	var y = d3.event.clientY-75; //vertical label coordinate
-	d3.select(".infolabel") //select the label div for moving
-		.style("margin-left", x+"px") //reposition label horizontal
-		.style("margin-top", y+"px"); //reposition label vertical
-};
+    // update chart after attribute change
+    function updateChart(bars, n, colorScale){
+        // position bars
+        bars.attr("x", function(d, i){
+            return i * (chartInnerWidth / csvData.length) + leftPadding;
+        })
+        // size/resize bars
+        .attr("height", function(d, i){
+            // console.log(yScale(parseFloat(d[expressed])))
+            return yScale(parseFloat(d[expressed]));
+        })
+        .attr("y", function(d, i){
+            return chartHeight - yScale(parseFloat(d[expressed])) + topBottomPadding;
+        })
+        //c olor/recolor bars
+        .style("fill", function(d){
+            return choropleth(d, colorScale);
+        });
+        // add text to chart title
+        var chartTitle = d3.select(".chartTitle")
+            .text(expressed + " in each community area");
+    };
+
+    // function to highlight enumeration units and bars
+    function highlight(props){
+        //change stroke
+        var selected = d3.selectAll("." + props.GEOID)
+            .style("stroke", "white")
+            .style("stroke-width", "2");
+    };
+
+    // function to reset the element style on mouseout
+    function dehighlight(props){
+        var selected = d3.selectAll("." + props.GEOID)
+            .style("stroke", function(){
+                return getStyle(this, "stroke")
+            })
+            .style("stroke-width", function(){
+                return getStyle(this, "stroke-width")
+            })
+            // remove info label
+            d3.select(".infolabel")
+            .remove();
+            
+
+        function getStyle(element, styleName){
+            var styleText = d3.select(element)
+                .select("desc")
+                .text();
+
+            var styleObject = JSON.parse(styleText);
+
+            return styleObject[styleName];
+        };
+    };
+
+    // create dynamic label
+    function setLabel(props){
+        //label content
+        var labelAttribute = "<h1>" + props[expressed] +
+            "</h1><b>" + expressed + "</b>";
+
+        //create info label div
+        var infolabel = d3.select("body")
+            .append("div") // create label div
+            .attr("class", "infolabel")
+            .attr("id", props.GEOID + "label") // to style label
+            .html(labelAttribute)
+            .append("div") // child div for feature name
+            .attr("class", "labelname") //for styling name
+            .html(labelName); //add feature name to label
+
+        // var tractName = infolabel.append("div")
+        //     .attr("class", "labelname")
+        //     .html(props.GEOID);
+    };
+
+    // move info label with mouse
+    function moveLabel(){
+        //get width of label
+        var labelWidth = d3.select(".infolabel")
+            .node()
+            .getBoundingClientRect()
+            .width;
+
+        //use coordinates of mousemove event to set label coordinates
+        var x1 = d3.event.clientX + 10,
+            y1 = d3.event.clientY - 75,
+            x2 = d3.event.clientX - labelWidth - 10,
+            y2 = d3.event.clientY + 25;
+    
+            //horizontal label coordinate, testing for overflow
+            var x = d3.event.clientX > window.innerWidth - labelWidth - 20 ? x2 : x1; 
+            //vertical label coordinate, testing for overflow
+            var y = d3.event.clientY < 75 ? y2 : y1; 
+
+        d3.select(".infolabel")
+            .style("left", x + "px")
+            .style("top", y + "px");
 
 
-//         //translate topoJSON
-//         var censusTracts = topojson.feature(censusTracts, censusTracts.objects.Chicago_Census_Tract_Boundaries_WGS84),
-//             cityBoundary = topojson.feature(cityBoundary, cityBoundary.objects.Chicago_City_Boundary_WGS84).features;
+        
+    };
 
-//         var boundary = map.append("path")
-//             .datum(cityBoundary)
-//             .attr("class", "boundary")
-//             .attr("d", path);
-
-//         //add census tracts to map
-//         var tracts = map.selectAll(".tracts")
-//             .data(censusTracts)
-//             .enter()
-//             .append("path")
-//             .attr("class", function(d){
-//                 return "Tract: " + d.properties.GEOID;
-//             })
-//             .attr("d", path);
-//         };
-// };
-
+})();

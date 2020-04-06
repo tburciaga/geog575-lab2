@@ -1,9 +1,106 @@
 /* Stylesheet by Todd Burciaga, 2020 */
 
-/* body {
-    background-color:black;
-} */
+/* General Controls and Stuff */
+body {
+    background-color:white;
+} 
+.title {
+    font-family: sans-serif;
+    font-size: 1.5em;
+    font-weight: bold;
+}
+.dropdown {
+    position: absolute;
+    top: 80px;
+    left: 338px;
+    z-index: 10;
+    font-family: sans-serif;
+    font-size: .75em;
+    font-weight: lighter;
+    padding: 2px;
+    border: 1px solid #999;
+    box-shadow: 2px 2px 4px #999;
+}
+option {
+    font-weight: normal;
+}
+.infolabel {
+    position: absolute;
+    height: 50px;
+    min-width: 100px;
+    color: #fff;
+    background-color: #000;
+    border: solid thin #fff;
+    padding: 5px 10px;
+    top: -75px;
+}
+.infolabel h1 {
+    margin: 0 20px 0 0;
+    padding: 0;
+    display: inline-block;
+    line-height: 1em;
+}
 
+/* Text Styling */
+#h1 {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Map Stuff */
+.map {
+    border: medium solid #999;
+    margin: 10px 0 0 20px;
+}
+.lakeMichigan {
+    fill: lightblue;
+    stroke: darkblue;
+    stroke-width: 2px;
+    stroke-opacity: .1;
+    fill-opacity: .5;
+}
+.cityBoundary {
+    fill: #FFF;
+    fill-opacity: .1;
+    stroke: #CCC;
+    stroke-width: 1px;
+}
+.tracts {
+    fill-opacity: 1;
+    stroke: #000;
+    stroke-width: 0.5px;
+    stroke-linecap: round;
+}
+
+/* Chart Stuff */
+.chartBackground {
+    fill: rgba(128,128,128,.2);
+}
+.chartFrame{
+    fill: none;
+    stroke: #999;
+    stroke-width: 3px;
+    shape-rendering: crispEdges;
+}
+.chart {
+    background-color: rgba(244, 244, 244, 0.851);
+    border: medium solid #999;
+    float: right;
+    margin: 10px 20px 0 0;
+    stroke: lightgrey;
+}
+.bars {
+    fill: yellow;
+    stroke-width: 0.01px;
+}
+.numbers {
+    fill: white;
+    font-family: sans-serif;
+}
+.chartTitle {
+    font-family: sans-serif;
+    font-size: 1em;
+    font-weight: bold;
+}
 .axis path,
 .axis line {
     fill: none;
@@ -11,30 +108,8 @@
     stroke-width: 1px;
     shape-rendering: crispEdges;
 }
-
 .axis text {
     font-family: sans-serif;
-    font-size: 0.9em;
-}
-
-.title {
-    font-family: sans-serif;
-    font-size: 1.5em;
-    font-weight: bold;
-}
-
-.popLine {
-    font-family: sans-serif;
-    font-size: 0.9em;
-}
-
-.nameLine {
-    font-family: sans-serif;
-    font-size: 0.9em;
-    font-weight: bold;
-}
-
-.cityBoundary {
-    fill-opacity: .1;
-    stroke: black;
+    font-size: 0.8em;
+    fill: #999;
 }

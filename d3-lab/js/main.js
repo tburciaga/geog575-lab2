@@ -7,25 +7,30 @@
     var attrArray = ["TOTAL_POPULATION", "MEDIAN_AGE", "PCT_POVERTY", "PCT_HSNGCSTS_OVR_50_PCT", "PCT_OVR_25_HGHSCL_CMPLT", "PCT_OVR_25_BCHLRS_CMPLT", "PCT_UNEMPLOYED"];
     var expressed = attrArray[0]; //first attribute
  
+    var attrArray2 = [{id:"TOTAL_POPULATION",name:"Total Population"},{id:"MEDIAN_AGE",name:"Median Age"},
+                        {id:"PCT_POVERTY",name:"% Poverty"},{id:"PCT_HSNGCSTS_OVR_50_PCT",name:"% Housing Costs > 50% of Income"},
+                        {id:"PCT_OVR_25_HGHSCL_CMPLT",name:"% > 25 Years with High School Diploma"},
+                        {id:"PCT_OVR_25_BCHLRS_CMPLT",name:"% > 25 Years with Bachlors"},{id:"PCT_UNEMPLOYED",name:"% Unemployed"}]
+
+    //console.log(attrArray2[1].name)
+
     //map frame dimensions
-    var mapWidth = window.innerWidth * 0.5,
+    var mapWidth = window.innerWidth * 0.475,
         mapHeight = 790;
 
     //chart frame dimensions
-    var chartWidth = window.innerWidth * 0.425,
+    var chartWidth = window.innerWidth * 0.475,
         chartHeight = 790,
-        margin = 60,
         leftPadding = 60,
         rightPadding = 2,
-        topPadding = 10,
         topBottomPadding = 0,
         chartInnerWidth = chartWidth - leftPadding - rightPadding,
         chartInnerHeight = chartHeight - topBottomPadding * 2,
         translate = "translate(" + leftPadding + "," + topBottomPadding + ")";
 
     var yScale = d3.scaleLinear()
-        .range([chartHeight - 10, 0])
-        .domain([0, 10000]);  // first attribute maxes under 10000
+        .range([0, chartHeight - 10])
+        .domain([100000, 0]);  // first attribute maxes under 100000
     
     // begin script when window loads
     window.onload = setMap()
@@ -55,7 +60,7 @@
         d3.queue()
             .defer(d3.csv, "data/CensusData.csv") //load attributes from csv
             .defer(d3.json, "data/LakeMichigan.topojson") //load background spatial data
-            .defer(d3.json, "data/CensusTracts.topojson") //load choropleth spatial data
+            .defer(d3.json, "data/CommunityAreas.topojson") //load choropleth spatial data
             .await(callback);
 
         //callback function
@@ -124,6 +129,7 @@
             .datum(lakeMichigan)
             .attr("class", "lakeMichigan")
             .attr("d", path);
+
     };
 
     // add census tract boundaries
@@ -209,15 +215,6 @@
     // create coordinated bar chart
     function setChart(csvData, colorScale){
 
-        // var domainArray = [];
-        // for (var i=0; i<csvData.length; i++){
-        //     var val = parseFloat(csvData[i][expressed]);
-        //     domainArray.push(val);
-        // };        
-
-        // var yScale = d3.scaleLinear()
-        //     .range([0, chartHeight])
-        //     .domain([d3.max(csvData, function(d) { return parseFloat(d[expressed]); }), 0]);
     
         //create a second svg element to hold the bar chart
         var chart = d3.select("body")
@@ -234,30 +231,18 @@
             .attr("transform", translate);
 
         
-         //Example 2.4 line 8...set bars 
+        //set bars 
         var bars = chart.selectAll(".bars")
             .data(csvData)
             .enter()
             .append("rect")
             .sort(function(a, b){
-                return b[expressed]-a[expressed]
+                return a[expressed]-b[expressed]
             })
             .attr("class", function(d){
                 return "bars " + d.GEOID;
             })
             .attr("width", chartInnerWidth / csvData.length)
-            // .attr("x", function(d, i){
-            //     return i * (chartInnerWidth / csvData.length) + leftPadding;
-            // })
-            // .attr("height", function(d){
-            //     return yScale(parseFloat(d[expressed]));
-            // })
-            // .attr("y", function(d){
-            //     return chartHeight - yScale(parseFloat(d[expressed]));
-            // })
-            // .style("fill", function(d){
-            //     return choropleth(d, colorScale)
-            // })
             .on("mouseover", highlight)
             .on("mouseout", dehighlight)
             .on("mousemove", moveLabel);
@@ -265,38 +250,13 @@
         //add style descriptor to each bar
         var desc = bars.append("desc")
             .text('{"stroke": "none", "stroke-width": "0px"}');
-
-
-
-        // //add bar annotation
-        // var numbers = chart.selectAll(".numbers")
-        //     .data(csvData)
-        //     .enter()
-        //     .append("text")
-        //     .sort(function(a, b){
-        //         return b[expressed]-a[expressed]
-        //     })
-        //     .attr("class", function(d){
-        //         return "numbers " + d.SIDES;
-        //     })
-        //     .attr("text-anchor", "middle")
-        //     .attr("x", function(d, i){
-        //         var fraction = chartWidth / csvData.length;
-        //         return i * fraction + (fraction - 1) / 2;
-        //     })
-        //     .attr("y", function(d){
-        //         return chartHeight - yScale(parseFloat(d[expressed])) + 15;
-        //     })
-        //     .text(function(d){
-        //         return d[expressed];
-        //     });
        
         //add chart title
         var chartTitle = chart.append("text")
             .attr("x", 80)
             .attr("y", 40)
             .attr("class", "chartTitle")
-            .text(expressed + " per tract");
+            .text(expressed + " per Community Area");
       
         //create vertical axis generator
         var yAxis = d3.axisLeft()
@@ -317,15 +277,15 @@
 
         //set bar positions, heights, and colors
         updateChart(bars, csvData.length, colorScale);
-
+            console.log(csvData.length);
     };        
 
     // function to create a dropdown menu for attribute selection
     function createDropdown(csvData){
         
-        // I HAVE NO IDEA WHY THIS WOULD BE NECESSARY
-        // BUT IT WAS PART OF DEBUGGING SOLUTION
-        var csvData = csvData
+        // // I HAVE NO IDEA WHY THIS WOULD BE NECESSARY
+        // // BUT IT WAS PART OF DEBUGGING SOLUTION
+        // var csvData = csvData
         
         //add select element
         var dropdown = d3.select("body")
@@ -359,8 +319,8 @@
         csvmax = d3.max(csvData, function (d) { return parseFloat(d[expressed]); });
 
         yScale = d3.scaleLinear()
-            .range([chartHeight - 10, 0])
-            .domain([0, csvmax*1.1]);
+            .range([0, chartHeight - 10])
+            .domain([csvmax*1.1, 0]);
 
         //update vertical axis
         d3.select(".axis").remove();
@@ -419,7 +379,7 @@
         });
         // add text to chart title
         var chartTitle = d3.select(".chartTitle")
-            .text(expressed + " per tract");
+            .text(expressed + " per Community Area");
     };
 
     // function to highlight enumeration units and bars

@@ -11,7 +11,7 @@ body {
 }
 .dropdown {
     position: absolute;
-    top: 80px;
+    top: 285px;
     left: 35px;
     z-index: 10;
     font-family: sans-serif;
@@ -95,7 +95,7 @@ option {
 }
 .bars {
     fill: yellow;
-    stroke-width: 0.01px;
+    stroke-width: 0.5px;
 }
 .numbers {
     fill: black;

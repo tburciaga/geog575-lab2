@@ -14,29 +14,29 @@
 
     //console.log(attrArray2[1].name)
 
-    //map frame dimensions
-    var mapWidth = window.innerWidth * 0.475,
-        mapHeight = 790;
-
     //chart frame dimensions
     var chartWidth = window.innerWidth * 0.475,
         chartHeight = 790,
         leftPadding = 60,
         rightPadding = 2,
-        topBottomPadding = 0,
+        topBottomPadding = 10,
         chartInnerWidth = chartWidth - leftPadding - rightPadding,
         chartInnerHeight = chartHeight - topBottomPadding * 2,
         translate = "translate(" + leftPadding + "," + topBottomPadding + ")";
 
     var yScale = d3.scaleLinear()
-        .range([0, chartHeight - 10])
-        .domain([100000, 0]);  // first attribute maxes under 100000
+        .range([chartHeight - 10, 0])
+        .domain([0, 110000]);  // first attribute maxes under 100000
     
     // begin script when window loads
     window.onload = setMap()
 
     // set up choropleth map
     function setMap(){
+
+        //map frame dimensions
+        var mapWidth = window.innerWidth * 0.475,
+            mapHeight = 790;
 
         //create new svg container for the map
         var map = d3.select("body")
@@ -232,17 +232,17 @@
 
         
         //set bars 
-        var bars = chart.selectAll(".bars")
+        var bars = chart.selectAll(".bar")
             .data(csvData)
             .enter()
             .append("rect")
             .sort(function(a, b){
-                return a[expressed]-b[expressed]
+                return b[expressed]-a[expressed]
             })
             .attr("class", function(d){
-                return "bars " + d.GEOID;
+                return "bar " + d.GEOID;
             })
-            .attr("width", chartInnerWidth / csvData.length)
+            .attr("width", chartInnerWidth / csvData.length - 1)
             .on("mouseover", highlight)
             .on("mouseout", dehighlight)
             .on("mousemove", moveLabel);
@@ -260,7 +260,7 @@
       
         //create vertical axis generator
         var yAxis = d3.axisLeft()
-            .scale(yScale)
+            .scale(yScale);
 
         //place axis
         var axis = chart.append("g")
@@ -277,15 +277,10 @@
 
         //set bar positions, heights, and colors
         updateChart(bars, csvData.length, colorScale);
-            console.log(csvData.length);
     };        
 
     // function to create a dropdown menu for attribute selection
     function createDropdown(csvData){
-        
-        // // I HAVE NO IDEA WHY THIS WOULD BE NECESSARY
-        // // BUT IT WAS PART OF DEBUGGING SOLUTION
-        // var csvData = csvData
         
         //add select element
         var dropdown = d3.select("body")
@@ -319,8 +314,8 @@
         csvmax = d3.max(csvData, function (d) { return parseFloat(d[expressed]); });
 
         yScale = d3.scaleLinear()
-            .range([0, chartHeight - 10])
-            .domain([csvmax*1.1, 0]);
+            .range([chartHeight - 10, 0])
+            .domain([0, csvmax*1.1]);
 
         //update vertical axis
         d3.select(".axis").remove();
@@ -346,7 +341,7 @@
             });
 
          //re-sort, resize, and recolor bars
-        var bars = d3.selectAll(".bars")
+        var bars = d3.selectAll(".bar")
             //re-sort bars
             .sort(function(a, b){
                 return b[expressed] - a[expressed];
@@ -368,10 +363,10 @@
         })
         // size/resize bars
         .attr("height", function(d, i){
-            return yScale(parseFloat(d[expressed]));
+            return 790 - yScale(parseFloat(d[expressed]));
         })
         .attr("y", function(d, i){
-            return chartHeight - yScale(parseFloat(d[expressed])) + topBottomPadding;
+            return yScale(parseFloat(d[expressed])) + topBottomPadding;
         })
         //color/recolor bars
         .style("fill", function(d){
@@ -387,7 +382,7 @@
         //change stroke
         var selected = d3.selectAll("." + props.GEOID)
             .style("stroke", "white")
-            .style("stroke-width", "2");
+            .style("stroke-width", "3");
 
         setLabel(props);
     };
@@ -421,8 +416,8 @@
     // create dynamic label
     function setLabel(props){
         //label content
-        var labelAttribute = "<h1>" + props[expressed] +
-            "</h1><b>" + expressed + "</b>";
+        var labelAttribute = props["GEOID"] + "<br>" + "<h1>" + 
+            props[expressed] + "</h1><b>" + expressed + "</b>";
 
         //create info label div
         var infolabel = d3.select("body")
@@ -434,10 +429,6 @@
         var tractName = infolabel.append("div")
             .attr("class", "labelname") //for styling name
             .html(props.name); //add feature name to label
-
-        // var tractName = infolabel.append("div")
-        //     .attr("class", "labelname")
-        //     .html(props.GEOID);
     };
 
     // move info label with mouse
@@ -450,7 +441,7 @@
 
         //use coordinates of mousemove event to set label coordinates
         var x1 = d3.event.clientX + 10,
-            y1 = d3.event.clientY - 75,
+            y1 = d3.event.clientY + 85,
             x2 = d3.event.clientX - labelWidth - 10,
             y2 = d3.event.clientY + 25;
     
